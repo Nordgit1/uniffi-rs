@@ -187,7 +187,7 @@ fn find_sources<Config: BindingsConfig>(
                 ci.add_metadata(metadata)?;
             };
             ci.add_metadata(group)?;
-            let mut config = load_initial_config::<Config>(crate_root, config_file_override)?;
+            let mut config = load_initial_config::<Config>(Some(crate_root), config_file_override)?;
             if let Some(cdylib_name) = cdylib_name {
                 config.update_from_cdylib_name(cdylib_name);
             }

@@ -233,7 +233,7 @@ pub fn generate_external_bindings<T: BindingGenerator>(
     if let Some(ref library_file) = library_file {
         macro_metadata::add_to_ci_from_library(&mut component, library_file.as_ref())?;
     }
-    let crate_root = &guess_crate_root(udl_file.as_ref()).context("Failed to guess crate root")?;
+    let crate_root = guess_crate_root(udl_file.as_ref()).context("Failed to guess crate root")?;
 
     let config_file_override = config_file_override.as_ref().map(|p| p.as_ref());
     let library_file = library_file.as_ref().map(|p| p.as_ref());
@@ -352,18 +352,22 @@ fn crate_name_from_cargo_toml(udl_file: &Utf8Path) -> Result<String> {
         name: Option<String>,
     }
 
-    let file = guess_crate_root(udl_file)?.join("Cargo.toml");
-    let cargo_toml_bytes =
-        fs::read(file).context("Can't find Cargo.toml to determine the crate name")?;
+    if let Some(root) = guess_crate_root(udl_file)? {
+        let file = root.join("Cargo.toml");
+        let cargo_toml_bytes =
+            fs::read(file).context("Can't find Cargo.toml to determine the crate name")?;
 
-    let cargo_toml = toml::from_slice::<CargoToml>(&cargo_toml_bytes)?;
+        let cargo_toml = toml::from_slice::<CargoToml>(&cargo_toml_bytes)?;
 
-    let lib_crate_name = cargo_toml
-        .lib
-        .name
-        .unwrap_or_else(|| cargo_toml.package.name.replace('-', "_"));
+        let lib_crate_name = cargo_toml
+            .lib
+            .name
+            .unwrap_or_else(|| cargo_toml.package.name.replace('-', "_"));
 
-    Ok(lib_crate_name)
+        Ok(lib_crate_name)
+    } else {
+        Err(anyhow!("No UDL file provided"))
+    }
 }
 
 /// Guess the root directory of the crate from the path of its UDL file.
@@ -371,16 +375,16 @@ fn crate_name_from_cargo_toml(udl_file: &Utf8Path) -> Result<String> {
 /// For now, we assume that the UDL file is in `./src/something.udl` relative
 /// to the crate root. We might consider something more sophisticated in
 /// future.
-pub fn guess_crate_root(udl_file: &Utf8Path) -> Result<&Utf8Path> {
+pub fn guess_crate_root(udl_file: &Utf8Path) -> Result<Option<&Utf8Path>> {
     let path_guess = udl_file
         .parent()
         .context("UDL file has no parent folder!")?
         .parent()
         .context("UDL file has no grand-parent folder!")?;
     if !path_guess.join("Cargo.toml").is_file() {
-        bail!("UDL file does not appear to be inside a crate")
+        return Ok(None);
     }
-    Ok(path_guess)
+    Ok(Some(path_guess))
 }
 
 fn get_out_dir(udl_file: &Utf8Path, out_dir_override: Option<&Utf8Path>) -> Result<Utf8PathBuf> {
@@ -436,12 +440,18 @@ fn load_toml_file(source: Option<&Utf8Path>) -> Result<Option<toml::value::Table
 
 /// Load the default `uniffi.toml` config, merge TOML trees with `config_file_override` if specified.
 fn load_initial_config<Config: DeserializeOwned>(
-    crate_root: &Utf8Path,
+    crate_root: Option<&Utf8Path>,
     config_file_override: Option<&Utf8Path>,
 ) -> Result<Config> {
-    let mut config = load_toml_file(Some(crate_root.join("uniffi.toml").as_path()))
-        .context("default config")?
-        .unwrap_or(toml::value::Table::default());
+    let mut config = {
+        if let Some(crate_root) = crate_root {
+            load_toml_file(Some(crate_root.join("uniffi.toml").as_path()))
+                .context("default config")?
+                .unwrap_or(toml::value::Table::default())
+        } else {
+            toml::value::Table::default()
+        }
+    };
 
     let override_config = load_toml_file(config_file_override).context("override config")?;
     if let Some(override_config) = override_config {
@@ -542,7 +552,7 @@ mod test {
             .join("examples/arithmetic");
         assert_eq!(
             guess_crate_root(&example_crate_root.join("src/arthmetic.udl")).unwrap(),
-            example_crate_root
+            Some(example_crate_root).as_deref()
         );
 
         let not_a_crate_root = &this_crate_root.join("src/templates");
