@@ -13,6 +13,8 @@ jobs:
           rustup show
           rustup update
       - uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: "v1-rust"
       - name: Build
         run: |
            # Disable debug info, because the job runs out of disk space
