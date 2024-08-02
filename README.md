@@ -14,34 +14,7 @@ contributed back to upstream.
 
 ### Ad hoc features
 
-Currently the only ad hoc feature is docstrings. Docstrings allow the consumer to write comments in
-UDL file, and the comments are emitted in generated bindings. The comments are emitted without any
-transformations. What you see in UDL is what you get in generated bindings. The only change made to
-UDL comments are the comment syntax specific to each language. Docstrings can be used for most
-declarations in UDL file. Docstrings are parsed as AST nodes, so incorrectly placed docstrings will
-generate parse errors. Docstrings in UDL are comments prefixed with `///`. There is ongoing work to
-contribute docstrings to upstream [#1493](https://github.com/mozilla/uniffi-rs/pull/1493)
-[#1498](https://github.com/mozilla/uniffi-rs/pull/1498).
-
-To use the fork to generate docstrings, you can use upstream (or fork) to generate Rust scaffolding
-code, and use the fork to generate foreign bindings.
-
-Example of docstrings in UDL file.
-```java
-/// The list of supported capitalization options
-enum Capitalization {
-    /// Lowercase, i.e. `hello, world!`
-    Lower,
-
-    /// Uppercase, i.e. `Hello, World!`
-    Upper
-};
-
-namespace example {
-    /// Return a greeting message, using `capitalization` for capitalization
-    string hello_world(Capitalization capitalization);
-}
-```
+- ~~Docstrings~~ merged into upstream
 
 ### External generators
 
