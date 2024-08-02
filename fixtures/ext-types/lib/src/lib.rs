@@ -1,9 +1,27 @@
 use custom_types::Handle;
-use ext_types_external_crate::{ExternalCrateDictionary, ExternalCrateInterface};
-use ext_types_guid::Guid;
+use ext_types_custom::{ANestedGuid, Guid, Ouid};
+use ext_types_external_crate::{
+    ExternalCrateDictionary, ExternalCrateInterface, ExternalCrateNonExhaustiveEnum,
+};
 use std::sync::Arc;
-use uniffi_one::{UniffiOneEnum, UniffiOneInterface, UniffiOneProcMacroType, UniffiOneType};
+use uniffi_one::{
+    UniffiOneEnum, UniffiOneInterface, UniffiOneProcMacroType, UniffiOneTrait, UniffiOneType,
+    UniffiOneUDLTrait,
+};
+use uniffi_sublib::SubLibType;
 use url::Url;
+
+// #1988
+uniffi::ffi_converter_forward!(
+    ext_types_custom::Ouid,
+    ext_types_custom::UniFfiTag,
+    crate::UniFfiTag
+);
+uniffi::ffi_converter_forward!(
+    ext_types_custom::ANestedGuid,
+    ext_types_custom::UniFfiTag,
+    crate::UniFfiTag
+);
 
 pub struct CombinedType {
     pub uoe: UniffiOneEnum,
@@ -24,6 +42,7 @@ pub struct CombinedType {
     pub maybe_handle: Option<Handle>,
 
     pub ecd: ExternalCrateDictionary,
+    pub ecnee: ExternalCrateNonExhaustiveEnum,
 }
 
 fn get_combined_type(existing: Option<CombinedType>) -> CombinedType {
@@ -55,7 +74,25 @@ fn get_combined_type(existing: Option<CombinedType>) -> CombinedType {
         maybe_handle: Some(Handle(4)),
 
         ecd: ExternalCrateDictionary { sval: "ecd".into() },
+        ecnee: ExternalCrateNonExhaustiveEnum::One,
     })
+}
+
+// Not part of CombinedType as (a) object refs prevent equality testing and
+// (b) it's not currently possible to refer to external traits in UDL.
+#[derive(Default, uniffi::Record)]
+pub struct ObjectsType {
+    pub maybe_trait: Option<Arc<dyn UniffiOneTrait>>,
+    // XXX - can't refer to UniffiOneInterface here - #1854
+    //pub maybe_interface: Option<Arc<UniffiOneInterface>>,
+    // Use this in the meantime so the tests can still refer to it.
+    pub maybe_interface: Option<u8>,
+    pub sub: SubLibType,
+}
+
+#[uniffi::export]
+fn get_objects_type(value: Option<ObjectsType>) -> ObjectsType {
+    value.unwrap_or_default()
 }
 
 // A Custom type
@@ -73,6 +110,40 @@ fn get_maybe_url(url: Option<Url>) -> Option<Url> {
 
 fn get_maybe_urls(urls: Vec<Option<Url>>) -> Vec<Option<Url>> {
     urls
+}
+
+// XXX - #1854
+// fn get_imported_guid(guid: Guid) -> Guid {
+
+#[uniffi::export]
+fn get_imported_ouid(ouid: Ouid) -> Ouid {
+    ouid
+}
+
+// external custom types wrapping external custom types.
+#[uniffi::export]
+fn get_imported_nested_guid(guid: Option<ANestedGuid>) -> ANestedGuid {
+    guid.unwrap_or_else(|| ANestedGuid(Guid("nested".to_string())))
+}
+
+#[uniffi::export]
+fn get_imported_nested_ouid(guid: Option<ANestedGuid>) -> ANestedGuid {
+    guid.unwrap_or_else(|| ANestedGuid(Guid("nested".to_string())))
+}
+
+// A local custom type wrapping an external imported UDL type
+// XXX - #1854
+// pub struct NestedExternalGuid(pub Guid);
+// ...
+// fn get_nested_external_guid(nguid: Option<NestedExternalGuid>) -> NestedExternalGuid {
+
+// A local custom type wrapping an external imported procmacro type
+pub struct NestedExternalOuid(pub Ouid);
+uniffi::custom_newtype!(NestedExternalOuid, Ouid);
+
+#[uniffi::export]
+fn get_nested_external_ouid(ouid: Option<NestedExternalOuid>) -> NestedExternalOuid {
+    ouid.unwrap_or_else(|| NestedExternalOuid(Ouid("nested-external-ouid".to_string())))
 }
 
 // A struct
@@ -113,12 +184,23 @@ fn get_uniffi_one_interface() -> Arc<UniffiOneInterface> {
     Arc::new(UniffiOneInterface::new())
 }
 
+#[uniffi::export]
+fn get_uniffi_one_trait(t: Option<Arc<dyn UniffiOneTrait>>) -> Option<Arc<dyn UniffiOneTrait>> {
+    t
+}
+
 fn get_uniffi_one_proc_macro_type(t: UniffiOneProcMacroType) -> UniffiOneProcMacroType {
     t
 }
 
 fn get_external_crate_interface(val: String) -> Arc<ExternalCrateInterface> {
     Arc::new(ExternalCrateInterface::new(val))
+}
+
+fn get_uniffi_one_udl_trait(
+    t: Option<Arc<dyn UniffiOneUDLTrait>>,
+) -> Option<Arc<dyn UniffiOneUDLTrait>> {
+    t
 }
 
 uniffi::include_scaffolding!("ext-types-lib");

@@ -2,6 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+import kotlinx.coroutines.runBlocking
 import uniffi.imported_types_lib.*
 import uniffi.uniffi_one_ns.*
 
@@ -12,6 +13,10 @@ assert(ct.url ==  java.net.URL("http://example.com/"))
 
 val ct2 = getCombinedType(ct)
 assert(ct == ct2)
+
+assert(getObjectsType(null).maybeInterface == null)
+assert(getObjectsType(null).maybeTrait == null)
+assert(getUniffiOneTrait(null) == null)
 
 val url = java.net.URL("http://example.com/")
 assert(getUrl(url) ==  url)
@@ -26,6 +31,13 @@ assert(getMaybeUniffiOneType(uot)!! == uot)
 assert(getMaybeUniffiOneType(null) == null)
 assert(getUniffiOneTypes(listOf(uot)) == listOf(uot))
 assert(getMaybeUniffiOneTypes(listOf(uot, null)) == listOf(uot, null))
+
+runBlocking {
+    // This async function comes from the `uniffi-one` crate
+    assert(getUniffiOneAsync() == UniffiOneEnum.ONE)
+    // This async function comes from the `proc-macro-lib` crate
+    assert(getUniffiOneTypeAsync(uot) == uot)
+}
 
 val uopmt = UniffiOneProcMacroType("hello from proc-macro world")
 assert(getUniffiOneProcMacroType(uopmt) == uopmt)

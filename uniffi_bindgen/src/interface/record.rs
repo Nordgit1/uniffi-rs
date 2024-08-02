@@ -80,6 +80,10 @@ impl Record {
     pub fn iter_types(&self) -> TypeIterator<'_> {
         Box::new(self.fields.iter().flat_map(Field::iter_types))
     }
+
+    pub fn has_fields(&self) -> bool {
+        !self.fields.is_empty()
+    }
 }
 
 impl AsType for Record {
@@ -246,7 +250,7 @@ mod test {
     fn test_docstring_record() {
         const UDL: &str = r#"
             namespace test{};
-            ///informative docstring
+            /// informative docstring
             dictionary Testing { };
         "#;
         let ci = ComponentInterface::from_webidl(UDL, "crate_name").unwrap();
@@ -264,7 +268,7 @@ mod test {
         const UDL: &str = r#"
             namespace test{};
             dictionary Testing {
-                ///informative docstring
+                /// informative docstring
                 i32 testing;
             };
         "#;

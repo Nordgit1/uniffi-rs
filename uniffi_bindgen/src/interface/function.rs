@@ -249,6 +249,9 @@ pub trait Callable {
     fn return_type(&self) -> Option<Type>;
     fn throws_type(&self) -> Option<Type>;
     fn is_async(&self) -> bool;
+    fn takes_self(&self) -> bool {
+        false
+    }
     fn result_type(&self) -> ResultType {
         ResultType {
             return_type: self.return_type(),
@@ -318,6 +321,10 @@ impl<T: Callable> Callable for &T {
     fn is_async(&self) -> bool {
         (*self).is_async()
     }
+
+    fn takes_self(&self) -> bool {
+        (*self).takes_self()
+    }
 }
 
 #[cfg(test)]
@@ -376,7 +383,7 @@ mod test {
     fn test_docstring_function() {
         const UDL: &str = r#"
             namespace test {
-                ///informative docstring
+                /// informative docstring
                 void testing();
             };
         "#;

@@ -122,11 +122,34 @@ fn get_buttons() -> Vec<Arc<dyn Button>> { ... }
 fn press(button: Arc<dyn Button>) -> Arc<dyn Button> { ... }
 ```
 
-See the ["traits" example](https://github.com/mozilla/uniffi-rs/tree/main/examples/traits) for more.
+### Foreign implementations
+
+Use the `WithForeign` attribute to allow traits to also be implemented on the foreign side passed into Rust, for example:
+
+```idl
+[Trait, WithForeign]
+interface Button {
+    string name();
+};
+```
+
+```python
+class PyButton(uniffi_module.Button):
+    def name(self):
+        return "PyButton"
+
+uniffi_module.press(PyButton())
+```
+
+Note: This is currently only supported on Python, Kotlin, and Swift.
 
 ### Traits construction
 
 Because any number of `struct`s may implement a trait, they don't have constructors.
+
+### Traits example
+
+See the ["traits" example](https://github.com/mozilla/uniffi-rs/tree/main/examples/traits) for more.
 
 ## Alternate Named Constructors
 
@@ -141,12 +164,17 @@ interface TodoList {
     // This alternate constructor makes a new TodoList from a list of string items.
     [Name=new_from_items]
     constructor(sequence<string> items);
+    // This alternate constructor is async.
+    [Async, Name=new_async]
+    constructor(sequence<string> items);
     ...
 ```
 
 For each alternate constructor, UniFFI will expose an appropriate static-method, class-method or similar
 in the foreign language binding, and will connect it to the Rust method of the same name on the underlying
 Rust struct.
+
+Constructors can be async, although support for async primary constructors in bindings is minimal.
 
 ## Exposing methods from standard Rust traits
 
@@ -157,7 +185,7 @@ generate special methods on the object.
 
 For example, consider the following example:
 ```
-[Traits=Debug]
+[Traits=(Debug)]
 interface TodoList {
     ...
 }
@@ -200,6 +228,9 @@ interface TodoList {
 
     // Make a copy of this TodoList as a new instance.
     TodoList duplicate();
+
+    // Create a list of lists, one for each item this one
+    sequence<TodoList> split();
 };
 ```
 
@@ -208,16 +239,26 @@ To ensure that this is safe, UniFFI allocates every object instance on the heap 
 type for managing shared references at runtime.
 
 The use of `Arc` is transparent to the foreign-language code, but sometimes shows up
-in the function signatures of the underlying Rust code. For example, the Rust code implementing
-the `TodoList::duplicate` method would need to explicitly return an `Arc<TodoList>`, since UniFFI
-doesn't know whether it will be returning a new object or an existing one:
+in the function signatures of the underlying Rust code.
+
+When returning interface objects, UniFFI supports both Rust functions that wrap the value in an
+`Arc<>` and ones that don't.  This only applies if the interface type is returned directly:
 
 ```rust
 impl TodoList {
-    fn duplicate(&self) -> Arc<TodoList> {
-        Arc::new(TodoList {
+    // When the foreign function/method returns `TodoList`, the Rust code can return either `TodoList` or `Arc<TodoList>`.
+    fn duplicate(&self) -> TodoList {
+        TodoList {
             items: RwLock::new(self.items.read().unwrap().clone())
-        })
+        }
+    }
+
+    // However, if TodoList is nested inside another type then `Arc<TodoList>` is required
+    fn split(&self) -> Vec<Arc<TodoList>> {
+        self.items.read()
+            .iter()
+            .map(|i| Arc::new(TodoList::from_item(i.clone()))
+            .collect()
     }
 }
 ```

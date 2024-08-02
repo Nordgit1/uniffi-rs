@@ -34,4 +34,19 @@ fn get_my_proc_macro_type(t: UniffiOneProcMacroType) -> UniffiOneProcMacroType {
     t
 }
 
+#[uniffi::export]
+async fn get_uniffi_one_async() -> UniffiOneEnum {
+    UniffiOneEnum::One
+}
+
+#[uniffi::export(with_foreign)]
+pub trait UniffiOneTrait: Send + Sync {
+    fn hello(&self) -> String;
+}
+
+// Note `UDL` vs `Udl` is important here to test foreign binding name fixups.
+pub trait UniffiOneUDLTrait: Send + Sync {
+    fn hello(&self) -> String;
+}
+
 uniffi::include_scaffolding!("uniffi-one");

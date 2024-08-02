@@ -23,7 +23,7 @@ mod metadata;
 // `docs/uniffi-versioning.md` for details.
 //
 // Once we get to 1.0, then we'll need to update the scheme to something like 100 + major_version
-pub const UNIFFI_CONTRACT_VERSION: u32 = 24;
+pub const UNIFFI_CONTRACT_VERSION: u32 = 26;
 
 /// Similar to std::hash::Hash.
 ///
@@ -120,13 +120,6 @@ impl Checksum for &str {
 pub struct NamespaceMetadata {
     pub crate_name: String,
     pub name: String,
-    pub docstring: Option<String>,
-}
-
-impl NamespaceMetadata {
-    pub fn docstring(&self) -> Option<&str> {
-        self.docstring.as_deref()
-    }
 }
 
 // UDL file included with `include_scaffolding!()`
@@ -168,6 +161,7 @@ pub struct ConstructorMetadata {
     pub module_path: String,
     pub self_name: String,
     pub name: String,
+    pub is_async: bool,
     pub inputs: Vec<FnParamMetadata>,
     pub throws: Option<Type>,
     pub checksum: Option<u16>,
@@ -277,7 +271,17 @@ pub enum LiteralMetadata {
     Enum(String, Type),
     EmptySequence,
     EmptyMap,
-    Null,
+    None,
+    Some { inner: Box<LiteralMetadata> },
+}
+
+impl LiteralMetadata {
+    pub fn new_uint(v: u64) -> Self {
+        LiteralMetadata::UInt(v, Radix::Decimal, Type::UInt64)
+    }
+    pub fn new_int(v: i64) -> Self {
+        LiteralMetadata::Int(v, Radix::Decimal, Type::Int64)
+    }
 }
 
 // Represent the radix of integer literal values.
@@ -305,17 +309,46 @@ pub struct FieldMetadata {
     pub docstring: Option<String>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Checksum)]
+pub enum EnumShape {
+    Enum,
+    Error { flat: bool },
+}
+
+impl EnumShape {
+    pub fn as_u8(&self) -> u8 {
+        match self {
+            EnumShape::Enum => 0,
+            EnumShape::Error { flat: false } => 1,
+            EnumShape::Error { flat: true } => 2,
+        }
+    }
+
+    pub fn from(v: u8) -> anyhow::Result<Self> {
+        Ok(match v {
+            0 => EnumShape::Enum,
+            1 => EnumShape::Error { flat: false },
+            2 => EnumShape::Error { flat: true },
+            _ => anyhow::bail!("invalid enum shape discriminant {v}"),
+        })
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct EnumMetadata {
     pub module_path: String,
     pub name: String,
+    pub shape: EnumShape,
     pub variants: Vec<VariantMetadata>,
+    pub discr_type: Option<Type>,
+    pub non_exhaustive: bool,
     pub docstring: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct VariantMetadata {
     pub name: String,
+    pub discr: Option<LiteralMetadata>,
     pub fields: Vec<FieldMetadata>,
     pub docstring: Option<String>,
 }
@@ -336,6 +369,14 @@ pub struct CallbackInterfaceMetadata {
 }
 
 impl ObjectMetadata {
+    /// FFI symbol name for the `clone` function for this object.
+    ///
+    /// This function is used to increment the reference count before lowering an object to pass
+    /// back to Rust.
+    pub fn clone_ffi_symbol_name(&self) -> String {
+        clone_fn_symbol_name(&self.module_path, &self.name)
+    }
+
     /// FFI symbol name for the `free` function for this object.
     ///
     /// This function is used to free the memory used by this object.
@@ -385,6 +426,7 @@ impl UniffiTraitMetadata {
 }
 
 #[repr(u8)]
+#[derive(Eq, PartialEq, Hash)]
 pub enum UniffiTraitDiscriminants {
     Debug,
     Display,
@@ -401,25 +443,6 @@ impl UniffiTraitDiscriminants {
             3 => UniffiTraitDiscriminants::Hash,
             _ => anyhow::bail!("invalid trait discriminant {v}"),
         })
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum ErrorMetadata {
-    Enum { enum_: EnumMetadata, is_flat: bool },
-}
-
-impl ErrorMetadata {
-    pub fn name(&self) -> &String {
-        match self {
-            Self::Enum { enum_, .. } => &enum_.name,
-        }
-    }
-
-    pub fn module_path(&self) -> &String {
-        match self {
-            Self::Enum { enum_, .. } => &enum_.module_path,
-        }
     }
 }
 
@@ -450,7 +473,6 @@ pub enum Metadata {
     CallbackInterface(CallbackInterfaceMetadata),
     Record(RecordMetadata),
     Enum(EnumMetadata),
-    Error(ErrorMetadata),
     Constructor(ConstructorMetadata),
     Method(MethodMetadata),
     TraitMethod(TraitMethodMetadata),
@@ -475,7 +497,6 @@ impl Metadata {
             Metadata::Object(meta) => &meta.module_path,
             Metadata::CallbackInterface(meta) => &meta.module_path,
             Metadata::TraitMethod(meta) => &meta.module_path,
-            Metadata::Error(meta) => meta.module_path(),
             Metadata::CustomType(meta) => &meta.module_path,
             Metadata::UniffiTrait(meta) => meta.module_path(),
         }
@@ -521,12 +542,6 @@ impl From<RecordMetadata> for Metadata {
 impl From<EnumMetadata> for Metadata {
     fn from(e: EnumMetadata) -> Self {
         Self::Enum(e)
-    }
-}
-
-impl From<ErrorMetadata> for Metadata {
-    fn from(e: ErrorMetadata) -> Self {
-        Self::Error(e)
     }
 }
 

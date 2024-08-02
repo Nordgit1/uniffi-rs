@@ -2,9 +2,15 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+// This test ensures the generated code works as expected when documentation comments are generated.
+// Note: we do not check for existence of the doc comments here, as they are not programmatically
+// exposed to the code.
+// https://github.com/mozilla/uniffi-rs/pull/1493#discussion_r1375337478
+
 import uniffi.fixture.docstring.*;
 
 test()
+testMultiline()
 
 EnumTest.ONE
 EnumTest.TWO

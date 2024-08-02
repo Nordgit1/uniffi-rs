@@ -13,12 +13,29 @@ assert(ct.url ==  URL(string: "http://example.com/"))
 let ct2 = getCombinedType(value: ct)
 assert(ct == ct2)
 
+let t = getTraitImpl()
+assert(t.hello() == "sub-lib trait impl says hello")
+let sub = SubLibType(maybeEnum: nil, maybeTrait: t, maybeInterface: nil)
+assert(getSubType(existing: sub).maybeTrait != nil)
+
+let ob = ObjectsType(maybeTrait: t, maybeInterface: nil, sub: sub)
+assert(getObjectsType(value: nil).maybeInterface == nil)
+assert(getObjectsType(value: ob).maybeTrait != nil)
+assert(getUniffiOneTrait(t: nil) == nil)
+
 let url = URL(string: "http://example.com/")!;
 assert(getUrl(url: url) ==  url)
 assert(getMaybeUrl(url: url)! == url)
 assert(getMaybeUrl(url: nil) == nil)
 assert(getUrls(urls: [url]) == [url])
 assert(getMaybeUrls(urls: [url, nil]) == [url, nil])
+
+assert(getGuid(value: "guid") ==  "guid")
+assert(getOuid(ouid: "ouid") ==  "ouid")
+assert(getImportedOuid(ouid: "ouid") ==  "ouid")
+assert(getNestedOuid(nouid: "ouid") ==  "ouid")
+assert(getImportedNestedGuid(guid: nil) == "nested")
+assert(getNestedExternalOuid(ouid: nil) == "nested-external-ouid")
 
 assert(getUniffiOneType(t: UniffiOneType(sval: "hello")).sval == "hello")
 assert(getMaybeUniffiOneType(t: UniffiOneType(sval: "hello"))!.sval == "hello")

@@ -2,7 +2,11 @@ target
 .*.swp
 *.jar
 .vscode
+.idea
 xcuserdata
 docs/manual/src/internals/api
+# The old mdbook outdir
+docs/manual/book
+
 examples/app/ios/Generated
 examples/app/ios/IOSApp.xcodeproj/project.xcworkspace/xcshareddata/
