@@ -37,6 +37,21 @@ mod state {
     }
 }
 
+mod enum_repr {
+    #[derive(uniffi::Enum, Debug)]
+    #[repr(u8)]
+    pub enum ReprU8 {
+        One = 1,
+        Three = 3,
+        Fifteen = 0x0F,
+    }
+
+    #[derive(uniffi::Enum, Debug)]
+    pub enum NoRepr {
+        One = 1,
+    }
+}
+
 mod error {
     use super::Weapon;
 
@@ -78,19 +93,19 @@ pub trait Logger {
 }
 
 pub use calc::Calculator;
-pub use error::{ComplexError, FlatError};
+pub use error::FlatError;
 pub use person::Person;
 pub use state::State;
-pub use uniffi_traits::Special;
+
 pub use weapon::Weapon;
 
 mod test_type_ids {
     use super::*;
     use std::collections::HashMap;
     use std::sync::Arc;
-    use uniffi_core::Lower;
+    use uniffi_core::TypeId;
 
-    fn check_type_id<T: Lower<UniFfiTag>>(correct_type: Type) {
+    fn check_type_id<T: TypeId<UniFfiTag>>(correct_type: Type) {
         let buf = &mut T::TYPE_ID_META.as_ref();
         assert_eq!(
             uniffi_meta::read_metadata_type(buf).unwrap(),
@@ -114,7 +129,6 @@ mod test_type_ids {
         check_type_id::<f64>(Type::Float64);
         check_type_id::<bool>(Type::Boolean);
         check_type_id::<String>(Type::String);
-        check_type_id::<uniffi::ForeignExecutor>(Type::ForeignExecutor);
     }
 
     #[test]
@@ -193,23 +207,29 @@ mod test_metadata {
             EnumMetadata {
                 module_path: "uniffi_fixture_metadata".into(),
                 name: "Weapon".into(),
+                shape: EnumShape::Enum,
+                discr_type: None,
                 variants: vec![
                     VariantMetadata {
                         name: "Rock".into(),
+                        discr: None,
                         fields: vec![],
                         docstring: None,
                     },
                     VariantMetadata {
                         name: "Paper".into(),
+                        discr: None,
                         fields: vec![],
                         docstring: None,
                     },
                     VariantMetadata {
                         name: "Scissors".into(),
+                        discr: None,
                         fields: vec![],
                         docstring: None,
                     },
                 ],
+                non_exhaustive: false,
                 docstring: None,
             },
         );
@@ -222,14 +242,18 @@ mod test_metadata {
             EnumMetadata {
                 module_path: "uniffi_fixture_metadata".into(),
                 name: "State".into(),
+                shape: EnumShape::Enum,
+                discr_type: None,
                 variants: vec![
                     VariantMetadata {
                         name: "Uninitialized".into(),
+                        discr: None,
                         fields: vec![],
                         docstring: None,
                     },
                     VariantMetadata {
                         name: "Initialized".into(),
+                        discr: None,
                         fields: vec![FieldMetadata {
                             name: "data".into(),
                             ty: Type::String,
@@ -240,6 +264,7 @@ mod test_metadata {
                     },
                     VariantMetadata {
                         name: "Complete".into(),
+                        discr: None,
                         fields: vec![FieldMetadata {
                             name: "result".into(),
                             ty: Type::Record {
@@ -252,6 +277,63 @@ mod test_metadata {
                         docstring: None,
                     },
                 ],
+                non_exhaustive: false,
+                docstring: None,
+            },
+        );
+    }
+
+    #[test]
+    fn test_repr_enum() {
+        check_metadata(
+            &enum_repr::UNIFFI_META_UNIFFI_FIXTURE_METADATA_ENUM_REPRU8,
+            EnumMetadata {
+                module_path: "uniffi_fixture_metadata".into(),
+                name: "ReprU8".into(),
+                shape: EnumShape::Enum,
+                discr_type: Some(Type::UInt8),
+                variants: vec![
+                    VariantMetadata {
+                        name: "One".into(),
+                        discr: Some(LiteralMetadata::new_uint(1)),
+                        fields: vec![],
+                        docstring: None,
+                    },
+                    VariantMetadata {
+                        name: "Three".into(),
+                        discr: Some(LiteralMetadata::new_uint(3)),
+                        fields: vec![],
+                        docstring: None,
+                    },
+                    VariantMetadata {
+                        name: "Fifteen".into(),
+                        discr: Some(LiteralMetadata::new_uint(15)),
+                        fields: vec![],
+                        docstring: None,
+                    },
+                ],
+                non_exhaustive: false,
+                docstring: None,
+            },
+        );
+    }
+
+    #[test]
+    fn test_no_repr_enum() {
+        check_metadata(
+            &enum_repr::UNIFFI_META_UNIFFI_FIXTURE_METADATA_ENUM_NOREPR,
+            EnumMetadata {
+                module_path: "uniffi_fixture_metadata".into(),
+                name: "NoRepr".into(),
+                shape: EnumShape::Enum,
+                discr_type: None,
+                variants: vec![VariantMetadata {
+                    name: "One".into(),
+                    discr: Some(LiteralMetadata::new_uint(1)),
+                    fields: vec![],
+                    docstring: None,
+                }],
+                non_exhaustive: false,
                 docstring: None,
             },
         );
@@ -261,25 +343,27 @@ mod test_metadata {
     fn test_simple_error() {
         check_metadata(
             &error::UNIFFI_META_UNIFFI_FIXTURE_METADATA_ERROR_FLATERROR,
-            ErrorMetadata::Enum {
-                enum_: EnumMetadata {
-                    module_path: "uniffi_fixture_metadata".into(),
-                    name: "FlatError".into(),
-                    variants: vec![
-                        VariantMetadata {
-                            name: "Overflow".into(),
-                            fields: vec![],
-                            docstring: None,
-                        },
-                        VariantMetadata {
-                            name: "DivideByZero".into(),
-                            fields: vec![],
-                            docstring: None,
-                        },
-                    ],
-                    docstring: None,
-                },
-                is_flat: true,
+            EnumMetadata {
+                module_path: "uniffi_fixture_metadata".into(),
+                name: "FlatError".into(),
+                shape: EnumShape::Error { flat: true },
+                discr_type: None,
+                variants: vec![
+                    VariantMetadata {
+                        name: "Overflow".into(),
+                        discr: None,
+                        fields: vec![],
+                        docstring: None,
+                    },
+                    VariantMetadata {
+                        name: "DivideByZero".into(),
+                        discr: None,
+                        fields: vec![],
+                        docstring: None,
+                    },
+                ],
+                non_exhaustive: false,
+                docstring: None,
             },
         );
     }
@@ -288,43 +372,46 @@ mod test_metadata {
     fn test_complex_error() {
         check_metadata(
             &error::UNIFFI_META_UNIFFI_FIXTURE_METADATA_ERROR_COMPLEXERROR,
-            ErrorMetadata::Enum {
-                enum_: EnumMetadata {
-                    module_path: "uniffi_fixture_metadata".into(),
-                    name: "ComplexError".into(),
-                    variants: vec![
-                        VariantMetadata {
-                            name: "NotFound".into(),
-                            fields: vec![],
+            EnumMetadata {
+                module_path: "uniffi_fixture_metadata".into(),
+                name: "ComplexError".into(),
+                shape: EnumShape::Error { flat: false },
+                discr_type: None,
+                variants: vec![
+                    VariantMetadata {
+                        name: "NotFound".into(),
+                        discr: None,
+                        fields: vec![],
+                        docstring: None,
+                    },
+                    VariantMetadata {
+                        name: "PermissionDenied".into(),
+                        discr: None,
+                        fields: vec![FieldMetadata {
+                            name: "reason".into(),
+                            ty: Type::String,
+                            default: None,
                             docstring: None,
-                        },
-                        VariantMetadata {
-                            name: "PermissionDenied".into(),
-                            fields: vec![FieldMetadata {
-                                name: "reason".into(),
-                                ty: Type::String,
-                                default: None,
-                                docstring: None,
-                            }],
+                        }],
+                        docstring: None,
+                    },
+                    VariantMetadata {
+                        name: "InvalidWeapon".into(),
+                        discr: None,
+                        fields: vec![FieldMetadata {
+                            name: "weapon".into(),
+                            ty: Type::Enum {
+                                module_path: "uniffi_fixture_metadata".into(),
+                                name: "Weapon".into(),
+                            },
+                            default: None,
                             docstring: None,
-                        },
-                        VariantMetadata {
-                            name: "InvalidWeapon".into(),
-                            fields: vec![FieldMetadata {
-                                name: "weapon".into(),
-                                ty: Type::Enum {
-                                    module_path: "uniffi_fixture_metadata".into(),
-                                    name: "Weapon".into(),
-                                },
-                                default: None,
-                                docstring: None,
-                            }],
-                            docstring: None,
-                        },
-                    ],
-                    docstring: None,
-                },
-                is_flat: false,
+                        }],
+                        docstring: None,
+                    },
+                ],
+                non_exhaustive: false,
+                docstring: None,
             },
         );
     }
@@ -419,6 +506,15 @@ mod test_function_metadata {
             unimplemented!()
         }
     }
+
+    #[uniffi::export(with_foreign)]
+    pub trait TraitWithForeign: Send + Sync {
+        fn test_method(&self, a: String, b: u32) -> String;
+    }
+
+    #[allow(unused)]
+    #[uniffi::export]
+    fn input_trait_with_foreign(val: Arc<dyn TraitWithForeign>) {}
 
     #[test]
     fn test_function() {
@@ -629,20 +725,48 @@ mod test_function_metadata {
     }
 
     #[test]
-    fn test_trait_result() {
+    fn test_trait_metadata() {
+        check_metadata(
+            &UNIFFI_META_UNIFFI_FIXTURE_METADATA_INTERFACE_CALCULATORDISPLAY,
+            ObjectMetadata {
+                module_path: "uniffi_fixture_metadata".into(),
+                name: "CalculatorDisplay".into(),
+                imp: ObjectImpl::Trait,
+                docstring: None,
+            },
+        );
+    }
+
+    #[test]
+    fn test_trait_with_foreign_metadata() {
+        check_metadata(
+            &UNIFFI_META_UNIFFI_FIXTURE_METADATA_INTERFACE_TRAITWITHFOREIGN,
+            ObjectMetadata {
+                module_path: "uniffi_fixture_metadata".into(),
+                name: "TraitWithForeign".into(),
+                imp: ObjectImpl::CallbackTrait,
+                docstring: None,
+            },
+        );
+    }
+
+    #[test]
+    fn test_trait_type_data() {
         check_metadata(
             &UNIFFI_META_UNIFFI_FIXTURE_METADATA_METHOD_CALCULATOR_GET_DISPLAY,
             MethodMetadata {
-                module_path: "uniffi_fixture_metadata".into(),
-                self_name: "Calculator".into(),
-                name: "get_display".into(),
-                is_async: false,
-                inputs: vec![],
+                // The main point of this test is to check the `Type` value for a trait interface
                 return_type: Some(Type::Object {
                     module_path: "uniffi_fixture_metadata".into(),
                     name: "CalculatorDisplay".into(),
                     imp: ObjectImpl::Trait,
                 }),
+                // We might as well test other fields too though
+                module_path: "uniffi_fixture_metadata".into(),
+                self_name: "Calculator".into(),
+                name: "get_display".into(),
+                is_async: false,
+                inputs: vec![],
                 throws: None,
                 takes_self_by_arc: false,
                 checksum: Some(
@@ -672,6 +796,37 @@ mod test_function_metadata {
                 takes_self_by_arc: false,
                 checksum: Some(UNIFFI_META_CONST_UNIFFI_FIXTURE_METADATA_METHOD_CALCULATORDISPLAY_DISPLAY_RESULT
                     .checksum()),
+                docstring: None,
+            },
+        );
+    }
+
+    #[test]
+    fn test_trait_with_foreign_type_data() {
+        check_metadata(
+            &UNIFFI_META_UNIFFI_FIXTURE_METADATA_FUNC_INPUT_TRAIT_WITH_FOREIGN,
+            FnMetadata {
+                inputs: vec![
+                    // The main point of this test is to check the `Type` value for a trait interface
+                    FnParamMetadata::simple(
+                        "val",
+                        Type::Object {
+                            module_path: "uniffi_fixture_metadata".into(),
+                            name: "TraitWithForeign".into(),
+                            imp: ObjectImpl::CallbackTrait,
+                        },
+                    ),
+                ],
+                // We might as well test other fields too though
+                return_type: None,
+                module_path: "uniffi_fixture_metadata".into(),
+                name: "input_trait_with_foreign".into(),
+                is_async: false,
+                throws: None,
+                checksum: Some(
+                    UNIFFI_META_CONST_UNIFFI_FIXTURE_METADATA_FUNC_INPUT_TRAIT_WITH_FOREIGN
+                        .checksum(),
+                ),
                 docstring: None,
             },
         );

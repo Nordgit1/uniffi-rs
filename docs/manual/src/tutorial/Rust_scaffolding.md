@@ -1,20 +1,12 @@
 # Rust scaffolding
 
-## Rust scaffolding code
+As already noted UniFFI supports two methods of interface definitions: UDL files and proc macros.
 
-Now we generate some Rust helper code to make the `add` method available to foreign-language bindings.  
+If you use proc macros you can skip the next section, but if you use UDL files, you need to generate Rust "scaffolding" - code to implement what's described in the UDL.
 
-First, add `uniffi` to your crate as both a dependency and build-dependency.  Enable the `build` feature for the build-dependencies.  This adds the runtime support code that powers UniFFI and build-time support for generating the Rust scaffolding code.
+## Rust scaffolding code for UDL
 
-```toml
-[dependencies]
-uniffi = "0.XX.0"
-
-[build-dependencies]
-uniffi = { version = "0.XX.0", features = ["build"] }
-```
-
-Then create a `build.rs` file next to `Cargo.toml` that uses `uniffi` to generate the Rust scaffolding code.
+Crates using UDL need a `build.rs` file next to `Cargo.toml`. This uses `uniffi` to generate the Rust scaffolding code.
 
 ```rust
 fn main() {
@@ -22,15 +14,27 @@ fn main() {
 }
 ```
 
+It will generate `<namespace>.uniffi.rs` under your `target` directory.
+
 Lastly, we include the generated scaffolding code in our `lib.rs` using this handy macro:
 
 ```rust
 uniffi::include_scaffolding!("math");
 ```
 
-**Note:** The file name is always `<namespace>.uniffi.rs`.
+### Setup for crates using only proc macros
 
-Great! `add` is ready to see the outside world!
+If you are only using proc macros, you can skip `build.rs` entirely!
+All you need to do is add this to the top of `lib.rs`
+
+```rust
+uniffi::setup_scaffolding!();
+```
+
+NOTE: This function takes an optional parameter, the [`namespace`](../udl/namespace.md) used by the component.
+If not specified, the crate name will be used as the namespace.
+
+**⚠ Warning ⚠** Do not call both `uniffi::setup_scaffolding!()` and `uniffi::include_scaffolding!!()` in the same crate.
 
 ### Libraries that depend on UniFFI components
 

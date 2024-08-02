@@ -8,10 +8,10 @@ one = make_one(123)
 assert one.inner == 123
 assert one_inner_by_ref(one) == 123
 
-two = Two("a")
+two = Two(a="a")
 assert take_two(two) == "a"
 
-rwb = RecordWithBytes(bytes([1,2,3]))
+rwb = RecordWithBytes(some_bytes=bytes([1,2,3]))
 assert take_record_with_bytes(rwb) == bytes([1,2,3])
 
 obj = Object()
@@ -20,23 +20,32 @@ assert obj.is_heavy() == MaybeBool.UNCERTAIN
 obj2 = Object()
 assert obj.is_other_heavy(obj2) == MaybeBool.UNCERTAIN
 
+robj = Renamed()
+assert(robj.func())
+assert(rename_test())
+
 trait_impl = obj.get_trait(None)
-assert trait_impl.name() == "TraitImpl"
-assert obj.get_trait(trait_impl).name() == "TraitImpl"
-assert get_trait_name_by_ref(trait_impl) == "TraitImpl"
+assert trait_impl.concat_strings("foo", "bar") == "foobar"
+assert obj.get_trait(trait_impl).concat_strings("foo", "bar") == "foobar"
+assert concat_strings_by_ref(trait_impl, "foo", "bar") == "foobar"
+
+trait_impl2 = obj.get_trait_with_foreign(None)
+assert trait_impl2.name() == "RustTraitImpl"
+assert obj.get_trait_with_foreign(trait_impl2).name() == "RustTraitImpl"
 
 assert enum_identity(MaybeBool.TRUE) == MaybeBool.TRUE
 
 # just make sure this works / doesn't crash
-three = Three(obj)
+three = Three(obj=obj)
 
 assert(make_zero().inner == "ZERO")
 assert(make_record_with_bytes().some_bytes == bytes([0, 1, 2, 3, 4]))
 
 assert(make_hashmap(1, 2) == {1: 2})
-# fails with AttributeError!? - https://github.com/mozilla/uniffi-rs/issues/1774
-# d = {1, 2}
-# assert(return_hashmap(d) == d)
+d = {1: 2}
+assert(return_hashmap(d) == d)
+
+assert(join(["a", "b", "c"], ":") == "a:b:c")
 
 try:
     always_fails()
@@ -54,6 +63,24 @@ except FlatError.InvalidInput:
 else:
     raise Exception("do_stuff should throw if its argument is 0")
 
+
+# Defaults
+
+record_with_defaults = RecordWithDefaults(no_default_string="Test")
+assert(record_with_defaults.no_default_string == "Test")
+assert(record_with_defaults.boolean == True)
+assert(record_with_defaults.integer == 42)
+assert(record_with_defaults.float_var == 4.2)
+assert(record_with_defaults.vec == [])
+assert(record_with_defaults.opt_vec == None)
+assert(record_with_defaults.opt_integer == 42)
+
+assert(double_with_default() == 42)
+
+obj_with_defaults = ObjectWithDefaults()
+assert(obj_with_defaults.add_to_num() == 42)
+
+# Traits
 class PyTestCallbackInterface(TestCallbackInterface):
     def do_nothing(self):
         pass
@@ -82,4 +109,41 @@ class PyTestCallbackInterface(TestCallbackInterface):
         v = h.take_error(BasicError.InvalidInput())
         return v
 
+    def get_other_callback_interface(self):
+        return PyTestCallbackInterface2()
+
+class PyTestCallbackInterface2(OtherCallbackInterface):
+    def multiply(self, a, b):
+        return a * b
+
 call_callback_interface(PyTestCallbackInterface())
+
+# udl exposed functions with procmacro types.
+assert get_one(None).inner == 0
+assert get_bool(None) == MaybeBool.UNCERTAIN
+assert get_object(None).is_heavy() == MaybeBool.UNCERTAIN
+assert get_trait_with_foreign(None).name() == "RustTraitImpl"
+assert get_externals(None).one is None
+
+# values for enums without an explicit value are their index.
+assert(MaybeBool.TRUE.value == 0)
+assert(MaybeBool.FALSE.value == 1)
+assert(MaybeBool.UNCERTAIN.value == 2)
+# values with an explicit value should be that value.
+assert(ReprU8.ONE.value == 1)
+assert(ReprU8.THREE.value == 3)
+#assert(ReprU8.FIVE.value == 5)
+
+assert(get_mixed_enum(None) == MixedEnum.INT(1))
+assert(get_mixed_enum(MixedEnum.NONE()) == MixedEnum.NONE())
+assert(get_mixed_enum(MixedEnum.STRING("hello")) == MixedEnum.STRING("hello"))
+assert(MixedEnum.STRING("hello")[0] == "hello")
+assert(str(MixedEnum.STRING("hello")) == "MixedEnum.STRING('hello',)")
+
+assert(MixedEnum.BOTH("hello", 1)[0] == "hello")
+assert(MixedEnum.BOTH("hello", 1)[1] == 1)
+assert(MixedEnum.BOTH("hello", 1)[:] == ('hello', 1))
+assert(MixedEnum.BOTH("hello", 1)[-1] == 1)
+assert(str(MixedEnum.BOTH("hello", 2)) == "MixedEnum.BOTH('hello', 2)")
+
+assert(get_mixed_enum(MixedEnum.ALL("string", 2)).is_all())

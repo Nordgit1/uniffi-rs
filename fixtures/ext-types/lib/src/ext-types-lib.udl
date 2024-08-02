@@ -19,6 +19,7 @@ namespace imported_types_lib {
     UniffiOneInterface get_uniffi_one_interface();
     ExternalCrateInterface get_external_crate_interface(string val);
     UniffiOneProcMacroType get_uniffi_one_proc_macro_type(UniffiOneProcMacroType t);
+    UniffiOneUDLTrait? get_uniffi_one_udl_trait(UniffiOneUDLTrait? t);
 };
 
 // A type defined in a .udl file in the `uniffi-one` crate (ie, in
@@ -34,14 +35,17 @@ typedef extern UniffiOneEnum;
 [ExternalInterface="uniffi_one"]
 typedef extern UniffiOneInterface;
 
+// An UDL defined trait
+[ExternalTrait="uniffi_one"]
+typedef extern UniffiOneUDLTrait;
+
 // A type defined via procmacros in an external crate
 [ExternalExport="uniffi_one"]
 typedef extern UniffiOneProcMacroType;
 
-// A "wrapped" type defined in the guid crate (ie, defined in `../../guid/src/lib.rs` and
-// "declared" in `../../guid/src/guid.udl`). But it's still "external" from our POV,
-// So same as the `.udl` type above!
-[External="ext_types_guid"]
+// A Custom (ie, "wrapped") type defined externally in `../../custom-types/src/lib.rs`,
+// but because it's in a UDL it's still "external" from our POV, so same as the `.udl` type above.
+[External="ext_types_custom"]
 typedef extern Guid;
 
 // And re-use the `custom-types` example - this exposes `Url` and `Handle`
@@ -59,6 +63,12 @@ dictionary ExternalCrateDictionary {
 
 interface ExternalCrateInterface {
     string value();
+};
+
+[NonExhaustive]
+enum ExternalCrateNonExhaustiveEnum {
+    "One",
+    "Two",
 };
 
 // And a new type here to tie them all together.
@@ -81,4 +91,5 @@ dictionary CombinedType {
     Handle? maybe_handle;
 
     ExternalCrateDictionary ecd;
+    ExternalCrateNonExhaustiveEnum ecnee;
 };

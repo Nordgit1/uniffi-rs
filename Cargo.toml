@@ -12,6 +12,8 @@ members = [
 
   "examples/app/uniffi-bindgen-cli",
   "examples/arithmetic",
+  "examples/arithmetic-procmacro",
+  "examples/async-api-client",
   "examples/callbacks",
   "examples/custom-types",
   "examples/futures",
@@ -23,23 +25,23 @@ members = [
 
   "fixtures/benchmarks",
   "fixtures/coverall",
-  "fixtures/coverall-upstream-compatibility",
   "fixtures/callbacks",
+  "fixtures/error-types",
 
-  "fixtures/ext-types/guid",
+  "fixtures/ext-types/custom-types",
   "fixtures/ext-types/http-headermap",
   "fixtures/ext-types/uniffi-one",
   "fixtures/ext-types/lib",
   "fixtures/ext-types/proc-macro-lib",
+  "fixtures/ext-types/sub-lib",
 
   "fixtures/docstring",
-  "fixtures/foreign-executor",
+  "fixtures/docstring-proc-macro",
   "fixtures/keywords/kotlin",
   "fixtures/keywords/rust",
   "fixtures/keywords/swift",
   "fixtures/metadata",
   "fixtures/proc-macro",
-  "fixtures/reexport-scaffolding-macro",
   "fixtures/regressions/enum-without-i32-helpers",
   "fixtures/regressions/fully-qualified-types",
   "fixtures/regressions/kotlin-experimental-unsigned-types",
@@ -51,17 +53,26 @@ members = [
   "fixtures/regressions/swift-dictionary-nesting",
   "fixtures/regressions/unary-result-alias",
   "fixtures/regressions/nested-module-import",
+  "fixtures/regressions/wrong-lower-check",
   "fixtures/trait-methods",
   "fixtures/uitests",
   "fixtures/uniffi-fixture-time",
   "fixtures/version-mismatch",
   "fixtures/simple-fns",
   "fixtures/simple-iface",
+  "fixtures/struct-default-values",
   "fixtures/swift-omit-labels",
   "fixtures/futures",
   "fixtures/swift-bridging-header-compile",
   "fixtures/type-limits",
   "fixtures/large-enum",
+  "fixtures/large-error",
+  "fixtures/enum-types",
+
+  "fixtures/coverall-upstream-compatibility",
 ]
 
 resolver = "2"
+
+[workspace.dependencies]
+uniffi = { path = "./uniffi", version = "0.3" }

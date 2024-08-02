@@ -2,9 +2,10 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+import asyncio
 import unittest
 import urllib
-from ext_types_guid import *
+from ext_types_custom import *
 from imported_types_lib import *
 from uniffi_one_ns import *
 
@@ -20,6 +21,11 @@ class TestIt(unittest.TestCase):
         ct2 = get_combined_type(ct)
         self.assertEqual(ct, ct2)
 
+        ot = get_objects_type(None)
+        self.assertEqual(ot.maybe_trait, None)
+        self.assertEqual(ot.maybe_interface, None)
+        self.assertEqual(get_uniffi_one_trait(None), None)
+
     def test_get_url(self):
         url = urllib.parse.urlparse("http://example.com/")
         self.assertEqual(get_url(url), url)
@@ -29,15 +35,24 @@ class TestIt(unittest.TestCase):
         self.assertEqual(get_maybe_urls([url, None]), [url, None])
 
     def test_get_uniffi_one_type(self):
-        t1 = UniffiOneType("hello")
+        t1 = UniffiOneType(sval="hello")
         self.assertEqual(t1, get_uniffi_one_type(t1))
         self.assertEqual(t1, get_maybe_uniffi_one_type(t1))
         self.assertEqual(None, get_maybe_uniffi_one_type(None))
         self.assertEqual([t1], get_uniffi_one_types([t1]))
         self.assertEqual([t1, None], get_maybe_uniffi_one_types([t1, None]))
 
+    def test_async(self):
+        async def test():
+            t1 = UniffiOneType(sval="hello")
+            # This async function comes from the `uniffi-one` crate
+            self.assertEqual(await get_uniffi_one_async(), UniffiOneEnum.ONE)
+            # This async function comes from the `proc-macro-lib` crate
+            self.assertEqual(t1, await get_uniffi_one_type_async(t1))
+        asyncio.run(test())
+
     def test_get_uniffi_one_proc_macro_type(self):
-        t1 = UniffiOneProcMacroType("hello")
+        t1 = UniffiOneProcMacroType(sval="hello")
         self.assertEqual(t1, get_uniffi_one_proc_macro_type(t1))
 
     def test_get_uniffi_one_enum(self):

@@ -9,12 +9,18 @@ use std::time::SystemTime;
 
 use once_cell::sync::Lazy;
 
+#[cfg(test)]
+mod ffi_buffer_scaffolding_test;
+
 mod traits;
-pub use traits::{get_traits, TestTrait};
+pub use traits::{
+    ancestor_names, get_string_util_traits, get_traits, make_rust_getters, test_getters,
+    test_round_trip_through_foreign, test_round_trip_through_rust, Getters, NodeTrait, StringUtil,
+};
 
 static NUM_ALIVE: Lazy<RwLock<u64>> = Lazy::new(|| RwLock::new(0));
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum CoverallError {
     #[error("The coverall has too many holes")]
     TooManyHoles,
@@ -80,7 +86,7 @@ impl From<InternalCoverallError> for CoverallError {
     }
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Clone, Debug, thiserror::Error, PartialEq, Eq)]
 pub enum ComplexError {
     #[error("OsError: {code} ({extended_code})")]
     OsError { code: i16, extended_code: i16 },
@@ -108,6 +114,63 @@ fn throw_complex_macro_error() -> Result<(), ComplexMacroError> {
     })
 }
 
+// Note: intentionally *does not* derive `uniffi::Error`, yet ends with `Error`, just to
+// mess with Kotlin etc.
+#[derive(Clone, Debug, uniffi::Enum)]
+pub enum OtherError {
+    Unexpected,
+}
+
+#[derive(Clone, Debug, thiserror::Error, uniffi::Error)]
+pub enum RootError {
+    #[error(transparent)]
+    // XXX - note Kotlin fails if this variant was called ComplexError
+    // (ie, the variant name can't match an existing type)
+    Complex {
+        #[from]
+        error: ComplexError,
+    },
+    #[error("Other Error")]
+    Other { error: OtherError },
+}
+
+// For Kotlin, we throw a variant which itself is a plain enum.
+#[uniffi::export]
+fn throw_root_error() -> Result<(), RootError> {
+    Err(RootError::Complex {
+        error: ComplexError::OsError {
+            code: 1,
+            extended_code: 2,
+        },
+    })
+}
+
+#[uniffi::export]
+fn get_root_error() -> RootError {
+    RootError::Other {
+        error: OtherError::Unexpected,
+    }
+}
+
+#[uniffi::export]
+fn get_complex_error(e: Option<ComplexError>) -> ComplexError {
+    e.unwrap_or(ComplexError::PermissionDenied {
+        reason: "too complex".to_string(),
+    })
+}
+
+#[uniffi::export]
+fn get_error_dict(d: Option<ErrorDict>) -> ErrorDict {
+    d.unwrap_or_default()
+}
+
+#[derive(Default, Debug, uniffi::Record)]
+pub struct ErrorDict {
+    complex_error: Option<ComplexError>,
+    root_error: Option<RootError>,
+    errors: Vec<RootError>,
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct SimpleDict {
     text: String,
@@ -131,7 +194,52 @@ pub struct SimpleDict {
     float64: f64,
     maybe_float64: Option<f64>,
     coveralls: Option<Arc<Coveralls>>,
-    test_trait: Option<Arc<dyn TestTrait>>,
+    test_trait: Option<Arc<dyn NodeTrait>>,
+}
+
+pub struct ReturnOnlyDict {
+    e: CoverallFlatError,
+}
+
+pub enum ReturnOnlyEnum {
+    One {
+        e: CoverallFlatError,
+    },
+    Two {
+        d: ReturnOnlyDict,
+    },
+    Three {
+        l: Vec<CoverallFlatError>,
+    },
+    Four {
+        m: HashMap<String, CoverallFlatError>,
+    },
+}
+
+fn output_return_only_dict() -> ReturnOnlyDict {
+    ReturnOnlyDict {
+        e: CoverallFlatError::TooManyVariants { num: 1 },
+    }
+}
+
+fn output_return_only_enum() -> ReturnOnlyEnum {
+    ReturnOnlyEnum::One {
+        e: CoverallFlatError::TooManyVariants { num: 2 },
+    }
+}
+
+fn try_input_return_only_dict(_d: ReturnOnlyDict) {
+    // This function can't work because ReturnOnlyDict contains a flat error and therefore
+    // can't be lifted by Rust.  There's a Python test that the UniFFI code panics before we get here.
+    //
+    // FIXME: should be a compile-time error rather than a runtime error (#1850)
+}
+
+pub fn divide_by_text(value: f32, value_as_text: String) -> Result<f32, ComplexError> {
+    match value_as_text.parse::<f32>() {
+        Ok(divisor) if divisor != 0.0 => Ok(value / divisor),
+        _ => Err(ComplexError::UnknownError),
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -204,7 +312,7 @@ fn create_some_dict() -> SimpleDict {
         float64: 0.0,
         maybe_float64: Some(1.0),
         coveralls: Some(Arc::new(Coveralls::new("some_dict".to_string()))),
-        test_trait: Some(Arc::new(traits::Trait2 {})),
+        test_trait: Some(Arc::new(traits::Trait2::default())),
     }
 }
 
@@ -319,7 +427,7 @@ impl Coveralls {
     }
 
     fn get_other(&self) -> Option<Arc<Self>> {
-        (*self.other.lock().unwrap()).as_ref().map(Arc::clone)
+        (*self.other.lock().unwrap()).clone()
     }
 
     fn take_other_fallible(self: Arc<Self>) -> Result<()> {
@@ -386,6 +494,10 @@ impl Coveralls {
         value.reverse();
         value
     }
+
+    fn set_and_get_empty_struct(&self, empty_struct: EmptyStruct) -> EmptyStruct {
+        empty_struct
+    }
 }
 
 impl Drop for Coveralls {
@@ -419,6 +531,18 @@ impl Patch {
 
     fn get_color(&self) -> Color {
         self.color
+    }
+}
+
+struct FalliblePatch {}
+
+impl FalliblePatch {
+    fn new() -> Result<Self> {
+        Err(CoverallError::TooManyHoles)
+    }
+
+    fn secondary() -> Result<Self> {
+        Err(CoverallError::TooManyHoles)
     }
 }
 
@@ -479,5 +603,7 @@ impl ISecond {
         false
     }
 }
+
+pub struct EmptyStruct;
 
 uniffi::include_scaffolding!("coverall-upstream-compatibility");

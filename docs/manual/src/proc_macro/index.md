@@ -13,7 +13,7 @@ Further, using this capability probably means you still need to refer to the UDL
 because at this time, that documentation tends to conflate the UniFFI type model and the
 description of how foreign bindings use that type model. For example, the documentation for
 a UDL interface describes both how it is defined in UDL and how Swift and Kotlin might use
-that interface. The latter is relevent even if you define the interface using proc-macros
+that interface. The latter is relevant even if you define the interface using proc-macros
 instead of in UDL.
 
 [Procedural Macros]: https://doc.rust-lang.org/reference/procedural-macros.html
@@ -23,7 +23,7 @@ true for all of UniFFI, so proceed with caution and the knowledge that things ma
 
 ## Build workflow
 
-Library mode is recommended when using UniFFI proc-macros (See the [Foreign language bindings docs](../tutorial/foreign_language_bindings.md) for more info).
+Be sure to use library mode when using UniFFI proc-macros (See the [Foreign language bindings docs](../tutorial/foreign_language_bindings.md) for more info).
 
 If your crate's API is declared using only proc-macros and not UDL files, call the `uniffi::setup_scaffolding` macro at the top of your source code:
 
@@ -55,9 +55,9 @@ struct MyObject {
 #[uniffi::export]
 impl MyObject {
     // Constructors need to be annotated as such.
-    // As of right now, they must return `Arc<Self>`, this might change.
-    // If the constructor is named `new`, it is treated as the primary
-    // constructor, so in most languages this is invoked with `MyObject()`.
+    // The return value can be either `Self` or `Arc<Self>`
+    // It is treated as the primary constructor, so in most languages this is invoked with
+    `MyObject()`.
     #[uniffi::constructor]
     fn new(argument: String) -> Arc<Self> {
         // ...
@@ -75,7 +75,7 @@ impl MyObject {
         // ...
     }
 
-    // `Arc<Self>` is also supported
+    // Returning objects is also supported, either as `Self` or `Arc<Self>`
     fn method_b(self: Arc<Self>) {
         // ...
     }
@@ -89,6 +89,13 @@ trait MyTrait {
     // ...
 }
 
+// Corresponding UDL:
+// [Trait, WithForeign]
+// interface MyTrait {};
+#[uniffi::export(with_foreign)]
+trait MyTrait {
+    // ...
+}
 ```
 
 
@@ -131,6 +138,72 @@ fn do_something(foo: MyFooRef) {
 }
 ```
 
+### Default values
+
+Exported functions/methods can have default values using the `default` argument of the attribute macro that wraps them.
+`default` inputs a comma-separated list of `[name]=[value]` items.
+
+```rust
+#[uniffi::export(default(text = " ", max_splits = None))]
+pub fn split(
+    text: String,
+    sep: String,
+    max_splits: Option<u32>,
+) -> Vec<String> {
+  ...
+}
+
+#[derive(uniffi::Object)]
+pub struct TextSplitter { ... }
+
+#[uniffi::export]
+impl TextSplitter {
+    #[uniffi::constructor(default(ignore_unicode_errors = false))]
+    fn new(ignore_unicode_errors: boolean) -> Self {
+        ...
+    }
+
+    #[uniffi::method(default(text = " ", max_splits = None))]
+    fn split(
+        text: String,
+        sep: String,
+        max_splits: Option<u32>,
+    ) -> Vec<String> {
+      ...
+    }
+}
+```
+
+Supported default values:
+  - String, integer, float, and boolean literals
+  - `[]` for empty Vecs
+  - `Option<T>` allows either `None` or `Some(T)`
+
+### Renaming functions, methods and constructors
+
+A single exported function can specify an alternate name to be used by the bindings by specifying a `name` attribute.
+
+```rust
+#[uniffi::export(name = "something")]
+fn do_something() {
+}
+```
+will be exposed to foreign bindings as a namespace function `something()`
+
+You can also rename constructors and methods:
+```rust
+#[uniffi::export]
+impl Something {
+    // Set this as the default constructor by naming it `new`
+    #[uniffi::constructor(name = "new")]
+    fn make_new() -> Arc<Self> { ... }
+
+    // Expose this as `obj.something()`
+    #[uniffi::method(name = "something")]
+    fn do_something(&self) { }
+}
+```
+
 ## The `uniffi::Record` derive
 
 The `Record` derive macro exposes a `struct` with named fields over FFI. All types that are
@@ -147,8 +220,7 @@ will fail).
 pub struct MyRecord {
     pub field_a: String,
     pub field_b: Option<Arc<MyObject>>,
-    // Fields can have a default value.
-    // Currently, only string, integer, float and boolean literals are supported as defaults.
+    // Fields can have a default values
     #[uniffi(default = "hello")]
     pub greeting: String,
     #[uniffi(default = true)]
@@ -174,6 +246,68 @@ pub enum MyEnum {
         foo: u8,
         bar: Vec<i32>,
     },
+    WithValue = 3,
+}
+```
+
+### Variant Discriminants
+
+Variant discriminants are accepted by the macro but how they are used depends on the bindings.
+
+For example this enum:
+
+```rust
+#[derive(uniffi::Enum)]
+pub enum MyEnum {
+    Foo = 3,
+    Bar = 4,
+}
+```
+
+would give you in Kotlin & Swift:
+
+```swift
+// kotlin
+enum class MyEnum {
+    FOO,
+    BAR;
+    companion object
+}
+// swift
+public enum MyEnum {
+    case foo
+    case bar
+}
+```
+
+which means you cannot use the platforms helpful methods like `value` or `rawValue` to get the underlying discriminants. Adding a `repr` will allow the type to be defined in the foreign bindings.
+
+For example:
+
+```rust
+// added the repr(u8), also u16 -> u64 supported
+#[repr(u8)]
+#[derive(uniffi::Enum)]
+pub enum MyEnum {
+    Foo = 3,
+    Bar = 4,
+}
+```
+
+will now generate:
+
+```swift
+// kotlin
+enum class MyEnum(val value: UByte) {
+    FOO(3u),
+    BAR(4u);
+    companion object
+}
+
+// swift
+public enum MyEnum : UInt8 {
+    case foo = 3
+    case bar = 4
 }
 ```
 
@@ -275,9 +409,8 @@ pub enum MyError {
         index: u32,
         size: u32,
     }
-    Generic {
-        message: String,
-    }
+    // tuple-enums work.
+    Generic(String),
 }
 
 #[uniffi::export]
@@ -289,8 +422,7 @@ fn do_thing() -> Result<(), MyError> {
 You can also use the helper attribute `#[uniffi(flat_error)]` to expose just the variants but none of the fields.
 In this case the error will be serialized using Rust's `ToString` trait
 and will be accessible as the only field on each of the variants.
-For flat errors your variants can have unnamed fields,
-and the types of the fields don't need to implement any special traits.
+The types of the fields can be any UniFFI supported type and don't need to implement any special traits.
 
 ```rust
 #[derive(uniffi::Error)]
@@ -314,7 +446,7 @@ fn do_http_request() -> Result<(), MyApiError> {
 
 ## The `#[uniffi::export(callback_interface)]` attribute
 
-`#[uniffi::export(callback_interface)]` can be used to export a [callback interface](../udl/callback_interfaces.html) definition.
+`#[uniffi::export(callback_interface)]` can be used to export a [callback interface](../udl/callback_interfaces.md) definition.
 This allows the foreign bindings to implement the interface and pass an instance to the Rust code.
 
 ```rust
@@ -360,3 +492,10 @@ to fix this limitation soon.
 In addition to the per-item limitations of the macros presented above, there is also currently a
 global restriction: You can only use the proc-macros inside a crate whose name is the same as the
 namespace in your UDL file. This restriction will be lifted in the future.
+
+### Conditional compilation
+`uniffi::constructor|method` will work if wrapped with `cfg_attr` attribute:
+```rust
+#[cfg_attr(feature = "foo", uniffi::constructor)]
+```
+Other attributes are not currently supported, see [#2000](https://github.com/mozilla/uniffi-rs/issues/2000) for more details.
